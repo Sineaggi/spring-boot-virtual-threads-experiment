@@ -7,7 +7,7 @@ Involved components:
 
 * Spring Framework 6.0 M5
 * Spring Boot 3.0 M4
-* Apache Tomcat 10.1.0 M17
+* Jetty 11.0.12
 * HikariCP 5.0.1 (Loom issue: https://github.com/brettwooldridge/HikariCP/issues/1463)
 * PGJDBC 42.4.0 (PR that turns `synchronized` into Loom-friendly Locks: https://github.com/pgjdbc/pgjdbc/issues/1951)
  
@@ -15,7 +15,7 @@ This experiment evolves incrementally, find the previous state at https://github
 
 You need Java 19 (EAP) with `--enable-preview` to run the example. 
 
-Customization of a vanilla Spring Boot with Tomcat application:
+Customization of a vanilla Spring Boot with Jetty application:
                                                               
 ```java
 @Bean
@@ -26,11 +26,19 @@ AsyncTaskExecutor applicationTaskExecutor() {
 }
 
 @Bean
-TomcatProtocolHandlerCustomizer<?> protocolHandlerVirtualThreadExecutorCustomizer() {
-
-    return protocolHandler -> {
-        protocolHandler.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
+JettyServletWebServerFactory JettyServletWebServerFactory(
+        ObjectProvider<JettyServerCustomizer> serverCustomizers) {
+    JettyServletWebServerFactory factory = new JettyServletWebServerFactory() {
+        @Override
+        public void setThreadPool(ThreadPool threadPool) {
+            if (threadPool instanceof VirtualThreads.Configurable configurable) {
+                configurable.setUseVirtualThreads(true);
+            }
+            super.setThreadPool(threadPool);
+        }
     };
+    factory.getServerCustomizers().addAll(serverCustomizers.orderedStream().toList());
+    return factory;
 }
 ```
 

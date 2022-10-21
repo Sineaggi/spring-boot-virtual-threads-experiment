@@ -4,9 +4,13 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import org.eclipse.jetty.util.VirtualThreads;
+import org.eclipse.jetty.util.thread.ThreadPool;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.web.embedded.tomcat.TomcatProtocolHandlerCustomizer;
+import org.springframework.boot.web.embedded.jetty.JettyServerCustomizer;
+import org.springframework.boot.web.embedded.jetty.JettyServletWebServerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.core.task.support.TaskExecutorAdapter;
@@ -29,11 +33,19 @@ public class ServletOfTheLoomApplication {
 	}
 
 	@Bean
-	TomcatProtocolHandlerCustomizer<?> protocolHandlerVirtualThreadExecutorCustomizer() {
-
-		return protocolHandler -> {
-			protocolHandler.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
+	JettyServletWebServerFactory JettyServletWebServerFactory(
+			ObjectProvider<JettyServerCustomizer> serverCustomizers) {
+		JettyServletWebServerFactory factory = new JettyServletWebServerFactory() {
+			@Override
+			public void setThreadPool(ThreadPool threadPool) {
+				if (threadPool instanceof VirtualThreads.Configurable configurable) {
+					configurable.setUseVirtualThreads(true);
+				}
+				super.setThreadPool(threadPool);
+			}
 		};
+		factory.getServerCustomizers().addAll(serverCustomizers.orderedStream().toList());
+		return factory;
 	}
 
 	@RestController
